@@ -1,0 +1,1150 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EchoStage - Public Speaking & Presentation Simulator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f6ff',
+                            400: '#38bdf8',
+                            500: '#0284c7',
+                            600: '#0284c7',
+                            900: '#0c4a6e',
+                        },
+                        cyber: {
+                            neon: '#00f3ff',
+                            purple: '#8a2be2',
+                            pink: '#ff007f',
+                            bg: '#090d16',
+                            card: '#111827',
+                            border: '#1f2937'
+                        }
+                    },
+                    animation: {
+                        'pulse-glow': 'pulseGlow 2s infinite',
+                        'float': 'float 3s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        pulseGlow: {
+                            '0%, 100%': { opacity: '1', boxShadow: '0 0 15px rgba(0, 243, 255, 0.4)' },
+                            '50%': { opacity: '0.7', boxShadow: '0 0 5px rgba(0, 243, 255, 0.1)' },
+                        },
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0px)' },
+                            '50%': { transform: 'translateY(-6px)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js CDN for post-session reports -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- MediaPipe Face Mesh CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            background-color: #07090e;
+            color: #e2e8f0;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            overflow-x: hidden;
+        }
+
+        /* Ambient Virtual Stages Styling */
+        .stage-auditorium {
+            background: radial-gradient(circle at 50% 20%, rgba(138, 43, 226, 0.25) 0%, rgba(9, 13, 22, 0.85) 70%),
+                        linear-gradient(to bottom, transparent 60%, rgba(0, 0, 0, 0.95) 100%);
+        }
+        .stage-boardroom {
+            background: radial-gradient(circle at 50% 30%, rgba(2, 132, 199, 0.25) 0%, rgba(15, 23, 42, 0.9) 75%),
+                        linear-gradient(to bottom, transparent 60%, rgba(2, 6, 23, 0.95) 100%);
+        }
+        .stage-keynote {
+            background: radial-gradient(circle at 50% 15%, rgba(255, 0, 127, 0.25) 0%, rgba(9, 13, 22, 0.9) 70%),
+                        linear-gradient(to bottom, transparent 60%, rgba(0, 0, 0, 0.95) 100%);
+        }
+        .stage-interview {
+            background: radial-gradient(circle at 50% 40%, rgba(16, 185, 129, 0.2) 0%, rgba(15, 23, 42, 0.9) 75%),
+                        linear-gradient(to bottom, transparent 60%, rgba(2, 6, 23, 0.95) 100%);
+        }
+
+        /* Glassmorphism utility */
+        .glass-panel {
+            background: rgba(17, 24, 39, 0.65);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        /* Custom Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(56, 189, 248, 0.3);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(56, 189, 248, 0.6);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-cyan-500 selection:text-black">
+
+    <!-- Top Navigation Header -->
+    <header class="border-b border-gray-800/80 bg-slate-950/80 backdrop-blur-md sticky top-0 z-50 px-4 lg:px-8 py-3">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 via-indigo-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                    <i data-lucide="mic" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-sky-200 to-fuchsia-400">
+                        EchoStage
+                    </h1>
+                    <p class="text-xs text-gray-400 hidden sm:block">AI Public Speaking & Interview Coach</p>
+                </div>
+            </div>
+
+            <!-- Mode Selector & Audio Device Selection -->
+            <div class="flex items-center space-x-3">
+                <select id="practiceMode" class="bg-gray-900 text-xs sm:text-sm text-gray-200 border border-gray-700/80 rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-500 transition">
+                    <option value="keynote">🎤 Keynote Speech (150-160 WPM)</option>
+                    <option value="interview">💼 Job Interview (130-150 WPM)</option>
+                    <option value="pitch">🚀 Elevator Pitch (140-165 WPM)</option>
+                    <option value="deck">📊 Pitch Deck Presentation (130-160 WPM)</option>
+                </select>
+
+                <select id="stageEnvironment" class="bg-gray-900 text-xs sm:text-sm text-gray-200 border border-gray-700/80 rounded-lg px-3 py-1.5 focus:outline-none focus:border-cyan-500 transition">
+                    <option value="auditorium">🏛️ Auditorium Stage</option>
+                    <option value="boardroom">🏢 Corporate Boardroom</option>
+                    <option value="keynote">✨ Cyber Tech Keynote</option>
+                    <option value="interview">👥 Virtual Interview Panel</option>
+                </select>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- Left / Center: Camera Stage View & HUD Overlay (8 Cols) -->
+        <div class="lg:col-span-8 flex flex-col space-y-4">
+            
+            <!-- Video Stage Card -->
+            <div id="stageCard" class="relative rounded-2xl overflow-hidden border border-gray-800 bg-slate-900 shadow-2xl min-h-[380px] sm:min-h-[480px] flex items-center justify-center stage-auditorium transition-all duration-700">
+                
+                <!-- Video & Canvas Element -->
+                <video id="webcamVideo" class="absolute inset-0 w-full h-full object-cover transform -scale-x-100 opacity-90" playsinline muted></video>
+                <canvas id="meshCanvas" class="absolute inset-0 w-full h-full object-cover transform -scale-x-100 pointer-events-none"></canvas>
+
+                <!-- Ambient Lighting Effect Overlay -->
+                <div class="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/80 via-transparent to-black/30"></div>
+
+                <!-- Stage Background Audience Lights (CSS Decorative) -->
+                <div id="audienceEffect" class="absolute bottom-4 left-0 right-0 flex justify-center space-x-6 opacity-40 pointer-events-none">
+                    <div class="w-3 h-3 rounded-full bg-cyan-400 animate-pulse"></div>
+                    <div class="w-2 h-2 rounded-full bg-fuchsia-400 animate-pulse delay-100"></div>
+                    <div class="w-3 h-3 rounded-full bg-purple-400 animate-pulse delay-200"></div>
+                    <div class="w-2 h-2 rounded-full bg-cyan-300 animate-pulse delay-300"></div>
+                </div>
+
+                <!-- Camera Off Fallback Placeholder -->
+                <div id="camPlaceholder" class="relative z-10 text-center p-6 flex flex-col items-center">
+                    <div class="w-20 h-20 rounded-full bg-gray-800/80 border border-gray-700 flex items-center justify-center mb-4 text-cyan-400 shadow-inner">
+                        <i data-lucide="video-off" class="w-10 h-10"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-200">Camera & Microphone Idle</h3>
+                    <p class="text-xs sm:text-sm text-gray-400 max-w-md mt-1">
+                        Click <span class="text-cyan-400 font-medium">"Start Session"</span> below to enable your camera, calibrate vision face mesh, and start live analysis.
+                    </p>
+                </div>
+
+                <!-- Real-Time HUD Overlay (Visible during active session) -->
+                <div id="hudOverlay" class="absolute inset-0 p-4 sm:p-6 flex flex-col justify-between pointer-events-none opacity-0 transition-opacity duration-500 z-20">
+                    
+                    <!-- Top HUD Stats Strip -->
+                    <div class="flex flex-wrap items-center justify-between gap-2 pointer-events-auto">
+                        
+                        <!-- Eye Contact Badge -->
+                        <div class="glass-panel px-3 py-1.5 rounded-xl flex items-center space-x-2 border-cyan-500/30">
+                            <i data-lucide="eye" id="eyeIcon" class="w-4 h-4 text-cyan-400"></i>
+                            <span class="text-xs text-gray-300 font-medium">Eye Contact:</span>
+                            <span id="eyeContactHud" class="text-xs font-bold text-cyan-400">0%</span>
+                        </div>
+
+                        <!-- Pacing Gauge Badge -->
+                        <div class="glass-panel px-3 py-1.5 rounded-xl flex items-center space-x-2 border-cyan-500/30">
+                            <i data-lucide="gauge" class="w-4 h-4 text-emerald-400"></i>
+                            <span class="text-xs text-gray-300 font-medium">Pace:</span>
+                            <span id="wpmHud" class="text-xs font-bold text-emerald-400">0 WPM</span>
+                        </div>
+
+                        <!-- Pose & Posture Alert Badge -->
+                        <div class="glass-panel px-3 py-1.5 rounded-xl flex items-center space-x-2 border-cyan-500/30">
+                            <i data-lucide="user-check" id="postureIcon" class="w-4 h-4 text-blue-400"></i>
+                            <span id="postureHud" class="text-xs font-semibold text-gray-200">Posture Stable</span>
+                        </div>
+
+                        <!-- Timer Badge -->
+                        <div class="glass-panel px-3 py-1.5 rounded-xl flex items-center space-x-2 border-amber-500/30 ml-auto">
+                            <i data-lucide="timer" class="w-4 h-4 text-amber-400"></i>
+                            <span id="timerHud" class="text-xs font-mono font-bold text-amber-400">00:00</span>
+                        </div>
+                    </div>
+
+                    <!-- Floating Alert Toast Container inside HUD -->
+                    <div id="hudToastContainer" class="flex flex-col items-center space-y-2 my-auto">
+                        <!-- Dynamic HUD Toast popups insert here -->
+                    </div>
+
+                    <!-- Bottom HUD Teleprompter overlay -->
+                    <div id="teleprompterContainer" class="glass-panel p-3 sm:p-4 rounded-xl border-white/10 max-h-28 overflow-hidden pointer-events-auto relative hidden">
+                        <div class="flex justify-between items-center mb-1 text-xs text-cyan-400 font-medium border-b border-gray-800 pb-1">
+                            <span><i data-lucide="file-text" class="w-3.5 h-3.5 inline mr-1"></i> Live Teleprompter</span>
+                            <div class="space-x-2 text-[10px]">
+                                <button id="tpSpeedDown" class="hover:text-white px-1 bg-gray-800 rounded">-</button>
+                                <span id="tpSpeedLabel">Speed: 1x</span>
+                                <button id="tpSpeedUp" class="hover:text-white px-1 bg-gray-800 rounded">+</button>
+                            </div>
+                        </div>
+                        <div id="teleprompterViewport" class="text-sm sm:text-base text-gray-200 leading-relaxed overflow-y-auto h-16 transition-all scroll-smooth font-serif">
+                            <p id="teleprompterText">Paste your speech transcript on the right panel to activate live teleprompter auto-scrolling during your presentation...</p>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+            <!-- Stage Control Toolbar -->
+            <div class="glass-panel p-4 rounded-2xl flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-center space-x-3">
+                    <button id="toggleSessionBtn" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold text-sm shadow-lg shadow-cyan-500/25 flex items-center space-x-2 transition transform active:scale-95">
+                        <i data-lucide="play" id="sessionBtnIcon" class="w-4 h-4"></i>
+                        <span id="sessionBtnText">Start Session</span>
+                    </button>
+                    
+                    <button id="pauseSessionBtn" disabled class="px-4 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-400 font-medium text-sm flex items-center space-x-1.5 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i data-lucide="pause" class="w-4 h-4"></i>
+                        <span>Pause</span>
+                    </button>
+                </div>
+
+                <!-- Live Audio Level Visualizer Meter -->
+                <div class="flex items-center space-x-3 flex-1 max-w-xs px-2">
+                    <i data-lucide="volume-2" class="w-4 h-4 text-cyan-400 shrink-0"></i>
+                    <div class="w-full bg-gray-800 h-2.5 rounded-full overflow-hidden p-0.5 border border-gray-700">
+                        <div id="volumeBar" class="bg-gradient-to-r from-emerald-400 via-cyan-400 to-fuchsia-500 h-full w-0 rounded-full transition-all duration-75"></div>
+                    </div>
+                </div>
+
+                <!-- Teleprompter Toggle Button -->
+                <button id="togglePrompterBtn" class="px-3.5 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs sm:text-sm flex items-center space-x-1.5 border border-gray-700 transition">
+                    <i data-lucide="scroll-text" class="w-4 h-4 text-cyan-400"></i>
+                    <span>Teleprompter</span>
+                </button>
+            </div>
+
+            <!-- Live Speech-to-Text Transcript Feed -->
+            <div class="glass-panel p-4 rounded-2xl flex flex-col space-y-2">
+                <div class="flex items-center justify-between border-b border-gray-800 pb-2">
+                    <div class="flex items-center space-x-2">
+                        <i data-lucide="message-square-text" class="w-4 h-4 text-cyan-400"></i>
+                        <h3 class="text-xs uppercase tracking-wider text-gray-400 font-semibold">Live Transcription Stream</h3>
+                    </div>
+                    <span id="transcriptCount" class="text-xs text-gray-500">0 words</span>
+                </div>
+                <div id="transcriptBox" class="text-sm text-gray-300 min-h-[60px] max-h-[100px] overflow-y-auto leading-relaxed italic">
+                    Speech transcription will display here live as you speak into the microphone...
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Side: Live Metrics Dashboard & Teleprompter Script Input (4 Cols) -->
+        <div class="lg:col-span-4 flex flex-col space-y-4">
+            
+            <!-- Real-Time Metrics & Filler Counter -->
+            <div class="glass-panel p-5 rounded-2xl flex flex-col space-y-4">
+                <h3 class="text-sm font-semibold text-gray-200 flex items-center space-x-2">
+                    <i data-lucide="activity" class="w-4 h-4 text-cyan-400"></i>
+                    <span>Real-Time Speech Metrics</span>
+                </h3>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <!-- Filler Word Counter Box -->
+                    <div class="bg-slate-900/80 border border-gray-800 p-3 rounded-xl flex flex-col justify-between">
+                        <span class="text-xs text-gray-400">Filler Words</span>
+                        <div class="flex items-baseline justify-between mt-1">
+                            <span id="fillerCount" class="text-2xl font-bold text-fuchsia-400">0</span>
+                            <span class="text-[10px] text-gray-500">um/uh/like</span>
+                        </div>
+                    </div>
+
+                    <!-- Current WPM Box -->
+                    <div class="bg-slate-900/80 border border-gray-800 p-3 rounded-xl flex flex-col justify-between">
+                        <span class="text-xs text-gray-400">Current Pace</span>
+                        <div class="flex items-baseline justify-between mt-1">
+                            <span id="wpmValue" class="text-2xl font-bold text-emerald-400">0</span>
+                            <span class="text-[10px] text-gray-500">words/min</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Breakdown of Detected Filler Words -->
+                <div class="bg-slate-900/60 rounded-xl p-3 border border-gray-800/80">
+                    <span class="text-xs text-gray-400 block mb-2 font-medium">Detected Filler Frequency</span>
+                    <div id="fillerTags" class="flex flex-wrap gap-1.5 text-[11px]">
+                        <span class="px-2 py-0.5 rounded bg-gray-800 text-gray-500 border border-gray-700/50">um: 0</span>
+                        <span class="px-2 py-0.5 rounded bg-gray-800 text-gray-500 border border-gray-700/50">uh: 0</span>
+                        <span class="px-2 py-0.5 rounded bg-gray-800 text-gray-500 border border-gray-700/50">like: 0</span>
+                        <span class="px-2 py-0.5 rounded bg-gray-800 text-gray-500 border border-gray-700/50">you know: 0</span>
+                        <span class="px-2 py-0.5 rounded bg-gray-800 text-gray-500 border border-gray-700/50">so: 0</span>
+                    </div>
+                </div>
+
+                <!-- Eye Contact Gauge Bar -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-gray-400">Eye Contact Stability</span>
+                        <span id="eyePercentText" class="text-cyan-400 font-bold">100%</span>
+                    </div>
+                    <div class="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
+                        <div id="eyeProgressBar" class="bg-cyan-400 h-full w-full transition-all duration-300"></div>
+                    </div>
+                </div>
+
+                <!-- Posture / Expression Status -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-gray-400">Expression & Confidence</span>
+                        <span id="expressionText" class="text-indigo-400 font-medium">Neutral / Calm</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Teleprompter Script Input Box -->
+            <div class="glass-panel p-5 rounded-2xl flex flex-col space-y-3">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-semibold text-gray-200 flex items-center space-x-2">
+                        <i data-lucide="file-edit" class="w-4 h-4 text-cyan-400"></i>
+                        <span>Script & Teleprompter Text</span>
+                    </h3>
+                    <button id="clearScriptBtn" class="text-xs text-gray-400 hover:text-white transition">Clear</button>
+                </div>
+                <textarea id="scriptInput" rows="5" placeholder="Paste your presentation script, interview answer key, or keynote points here to display on the teleprompter..." class="w-full bg-slate-900 border border-gray-800 rounded-xl p-3 text-xs text-gray-200 focus:outline-none focus:border-cyan-500/70 transition resize-none leading-relaxed"></textarea>
+                <p class="text-[11px] text-gray-500 italic">Script automatically syncs to the stage teleprompter overlay when enabled.</p>
+            </div>
+
+            <!-- End & Analyze Button -->
+            <button id="finishSessionBtn" disabled class="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold text-sm shadow-lg shadow-emerald-500/20 flex items-center justify-center space-x-2 transition opacity-50 cursor-not-allowed">
+                <i data-lucide="award" class="w-4 h-4"></i>
+                <span>Finish & Generate Comprehensive Report</span>
+            </button>
+        </div>
+
+    </main>
+
+    <!-- Post-Session Detailed Analytics Modal -->
+    <div id="reportModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 opacity-0 pointer-events-none transition-opacity duration-300">
+        <div class="bg-slate-950 border border-gray-800 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl space-y-6">
+            
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between border-b border-gray-800 pb-4">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
+                        <i data-lucide="trophy" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold text-white">Post-Session Performance Report</h2>
+                        <p id="reportMeta" class="text-xs text-gray-400">Duration: 00:00 | Mode: Keynote Speech</p>
+                    </div>
+                </div>
+                <button id="closeReportBtn" class="p-2 rounded-xl text-gray-400 hover:text-white hover:bg-gray-800 transition">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+
+            <!-- Scores Overview Grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div class="glass-panel p-4 rounded-xl text-center border-cyan-500/20">
+                    <span class="text-xs text-gray-400 block mb-1">Overall Score</span>
+                    <span id="scoreOverall" class="text-3xl font-black text-cyan-400">0%</span>
+                </div>
+                <div class="glass-panel p-4 rounded-xl text-center border-emerald-500/20">
+                    <span class="text-xs text-gray-400 block mb-1">Pacing Rating</span>
+                    <span id="scorePacing" class="text-3xl font-black text-emerald-400">0%</span>
+                </div>
+                <div class="glass-panel p-4 rounded-xl text-center border-indigo-500/20">
+                    <span class="text-xs text-gray-400 block mb-1">Eye Contact</span>
+                    <span id="scoreEyeContact" class="text-3xl font-black text-indigo-400">0%</span>
+                </div>
+                <div class="glass-panel p-4 rounded-xl text-center border-fuchsia-500/20">
+                    <span class="text-xs text-gray-400 block mb-1">Filler Word Index</span>
+                    <span id="scoreFiller" class="text-3xl font-black text-fuchsia-400">0%</span>
+                </div>
+            </div>
+
+            <!-- Visual Charts Breakdown -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Chart 1: WPM Pacing Graph -->
+                <div class="glass-panel p-4 rounded-xl flex flex-col">
+                    <h4 class="text-xs font-semibold text-gray-300 uppercase tracking-wider mb-3">Pacing Over Time (WPM)</h4>
+                    <div class="flex-1 min-h-[180px] relative">
+                        <canvas id="wpmChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart 2: Filler Word Breakdown -->
+                <div class="glass-panel p-4 rounded-xl flex flex-col">
+                    <h4 class="text-xs font-semibold text-gray-300 uppercase tracking-wider mb-3">Filler Word Count Distribution</h4>
+                    <div class="flex-1 min-h-[180px] relative flex items-center justify-center">
+                        <canvas id="fillerChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Annotated Speech Transcript -->
+            <div class="glass-panel p-4 rounded-xl space-y-2">
+                <h4 class="text-xs font-semibold text-gray-300 uppercase tracking-wider flex items-center space-x-2">
+                    <i data-lucide="file-search" class="w-4 h-4 text-cyan-400"></i>
+                    <span>Annotated Session Transcript</span>
+                </h4>
+                <p class="text-xs text-gray-400">Filler words highlighted in <span class="text-fuchsia-400 font-bold">purple</span>.</p>
+                <div id="annotatedTranscript" class="p-3 bg-slate-900/90 rounded-lg text-sm leading-relaxed text-gray-200 border border-gray-800 max-h-40 overflow-y-auto">
+                    <!-- Dynamic annotated transcript text -->
+                </div>
+            </div>
+
+            <!-- AI Feedback & Actionable Recommendations -->
+            <div class="glass-panel p-4 rounded-xl space-y-3 border-cyan-500/30">
+                <h4 class="text-sm font-semibold text-cyan-400 flex items-center space-x-2">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    <span>AI Stage Recommendations & Action Plan</span>
+                </h4>
+                <ul id="aiTipsList" class="space-y-2 text-xs sm:text-sm text-gray-300 list-disc list-inside">
+                   
+                </ul>
+            </div>
+
+          
+            <div class="flex justify-end space-x-3 pt-2">
+                <button id="restartSessionModalBtn" class="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-sm transition">
+                    Start New Session
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="border-t border-gray-900 bg-slate-950 py-3 text-center text-xs text-gray-500">
+        EchoStage AI Coach &bull; Client-Side Speech & Vision Simulator
+    </footer>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // ------------------------------------------------------------------
+        // APP STATE MANAGEMENT
+        // ------------------------------------------------------------------
+        const state = {
+            isSessionActive: false,
+            isPaused: false,
+            startTime: null,
+            timerInterval: null,
+            elapsedSeconds: 0,
+            
+            // Speech State
+            recognition: null,
+            transcript: "",
+            wordHistory: [], // { word, timestamp }
+            wpmHistory: [],  // { time, wpm }
+            fillerCounts: {
+                um: 0,
+                uh: 0,
+                like: 0,
+                "you know": 0,
+                so: 0,
+                basically: 0,
+                actually: 0
+            },
+            totalFillerCount: 0,
+
+            // Audio Level Analyzer
+            audioCtx: null,
+            analyser: null,
+            micStream: null,
+            audioAnimFrame: null,
+
+            // Computer Vision State
+            cameraUtils: null,
+            faceMesh: null,
+            eyeContactFrames: 0,
+            totalVisionFrames: 0,
+            eyeContactPercentage: 100,
+            currentPosture: "Stable",
+            currentExpression: "Calm",
+
+            // Teleprompter
+            teleprompterSpeed: 1, // multiplier
+            teleprompterInterval: null
+        };
+
+        // Filler Words Regex Patterns
+        const FILLER_PATTERNS = [
+            { word: 'um', regex: /\bum\b/gi },
+            { word: 'uh', regex: /\buh\b/gi },
+            { word: 'like', regex: /\blike\b/gi },
+            { word: 'you know', regex: /\byou know\b/gi },
+            { word: 'so', regex: /\bso\b/gi },
+            { word: 'basically', regex: /\bbasically\b/gi },
+            { word: 'actually', regex: /\bactually\b/gi }
+        ];
+
+        // ------------------------------------------------------------------
+        // DOM ELEMENTS
+        // ------------------------------------------------------------------
+        const webcamVideo = document.getElementById('webcamVideo');
+        const meshCanvas = document.getElementById('meshCanvas');
+        const stageCard = document.getElementById('stageCard');
+        const toggleSessionBtn = document.getElementById('toggleSessionBtn');
+        const sessionBtnText = document.getElementById('sessionBtnText');
+        const sessionBtnIcon = document.getElementById('sessionBtnIcon');
+        const pauseSessionBtn = document.getElementById('pauseSessionBtn');
+        const finishSessionBtn = document.getElementById('finishSessionBtn');
+        const camPlaceholder = document.getElementById('camPlaceholder');
+        const hudOverlay = document.getElementById('hudOverlay');
+
+        const volumeBar = document.getElementById('volumeBar');
+        const transcriptBox = document.getElementById('transcriptBox');
+        const transcriptCount = document.getElementById('transcriptCount');
+        const fillerCountEl = document.getElementById('fillerCount');
+        const wpmValueEl = document.getElementById('wpmValue');
+        const wpmHud = document.getElementById('wpmHud');
+        const eyeContactHud = document.getElementById('eyeContactHud');
+        const postureHud = document.getElementById('postureHud');
+        const timerHud = document.getElementById('timerHud');
+        const fillerTags = document.getElementById('fillerTags');
+        const eyePercentText = document.getElementById('eyePercentText');
+        const eyeProgressBar = document.getElementById('eyeProgressBar');
+        const expressionText = document.getElementById('expressionText');
+        
+        const scriptInput = document.getElementById('scriptInput');
+        const togglePrompterBtn = document.getElementById('togglePrompterBtn');
+        const teleprompterContainer = document.getElementById('teleprompterContainer');
+        const teleprompterText = document.getElementById('teleprompterText');
+        const teleprompterViewport = document.getElementById('teleprompterViewport');
+        const stageEnvironment = document.getElementById('stageEnvironment');
+        const practiceMode = document.getElementById('practiceMode');
+
+        // Modal Elements
+        const reportModal = document.getElementById('reportModal');
+        const closeReportBtn = document.getElementById('closeReportBtn');
+        const restartSessionModalBtn = document.getElementById('restartSessionModalBtn');
+        let wpmChartInstance = null;
+        let fillerChartInstance = null;
+
+        // ------------------------------------------------------------------
+        // STAGE ENVIRONMENT SELECTOR
+        // ------------------------------------------------------------------
+        stageEnvironment.addEventListener('change', (e) => {
+            stageCard.className = `relative rounded-2xl overflow-hidden border border-gray-800 bg-slate-900 shadow-2xl min-h-[380px] sm:min-h-[480px] flex items-center justify-center stage-${e.target.value} transition-all duration-700`;
+        });
+
+        // ------------------------------------------------------------------
+        // TELEPROMPTER LOGIC
+        // ------------------------------------------------------------------
+        togglePrompterBtn.addEventListener('click', () => {
+            teleprompterContainer.classList.toggle('hidden');
+        });
+
+        scriptInput.addEventListener('input', (e) => {
+            const val = e.target.value.trim();
+            teleprompterText.textContent = val.length > 0 ? val : "Paste your speech transcript on the right panel to activate live teleprompter auto-scrolling during your presentation...";
+        });
+
+        document.getElementById('clearScriptBtn').addEventListener('click', () => {
+            scriptInput.value = '';
+            teleprompterText.textContent = "Paste your speech transcript on the right panel to activate live teleprompter auto-scrolling during your presentation...";
+        });
+
+        document.getElementById('tpSpeedUp').addEventListener('click', () => {
+            state.teleprompterSpeed = Math.min(3, state.teleprompterSpeed + 0.5);
+            document.getElementById('tpSpeedLabel').textContent = `Speed: ${state.teleprompterSpeed}x`;
+        });
+        document.getElementById('tpSpeedDown').addEventListener('click', () => {
+            state.teleprompterSpeed = Math.max(0.5, state.teleprompterSpeed - 0.5);
+            document.getElementById('tpSpeedLabel').textContent = `Speed: ${state.teleprompterSpeed}x`;
+        });
+
+        function startTeleprompterScroll() {
+            if (state.teleprompterInterval) clearInterval(state.teleprompterInterval);
+            state.teleprompterInterval = setInterval(() => {
+                if (state.isSessionActive && !state.isPaused && !teleprompterContainer.classList.contains('hidden')) {
+                    teleprompterViewport.scrollTop += 1 * state.teleprompterSpeed;
+                }
+            }, 50);
+        }
+
+        // ------------------------------------------------------------------
+        // SPEECH RECOGNITION SETUP
+        // ------------------------------------------------------------------
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                showToast("Speech Recognition API not supported in this browser. Use Chrome/Edge.", "warning");
+                return;
+            }
+
+            state.recognition = new SpeechRecognition();
+            state.recognition.continuous = true;
+            state.recognition.interimResults = true;
+            state.recognition.lang = 'en-US';
+
+            state.recognition.onresult = (event) => {
+                let currentTranscript = '';
+                for (let i = 0; i < event.results.length; i++) {
+                    currentTranscript += event.results[i][0].transcript + ' ';
+                }
+                
+                state.transcript = currentTranscript;
+                transcriptBox.innerText = state.transcript || "Listening...";
+                
+                // Process Words & Filler Detection
+                analyzeSpeechContent(state.transcript);
+            };
+
+            state.recognition.onerror = (err) => {
+                console.warn("Speech Rec Error:", err);
+            };
+
+            state.recognition.onend = () => {
+                // Keep continuous if session still active
+                if (state.isSessionActive && !state.isPaused) {
+                    try { state.recognition.start(); } catch(e){}
+                }
+            };
+        }
+
+        function analyzeSpeechContent(text) {
+            const words = text.trim().split(/\s+/).filter(w => w.length > 0);
+            transcriptCount.textContent = `${words.length} words`;
+
+            // Calculate WPM based on elapsed time
+            if (state.elapsedSeconds > 3) {
+                const minutes = state.elapsedSeconds / 60;
+                const wpm = Math.round(words.length / minutes);
+                wpmValueEl.textContent = wpm;
+                wpmHud.textContent = `${wpm} WPM`;
+
+                // Log WPM history every 5 sec
+                if (state.elapsedSeconds % 3 === 0) {
+                    state.wpmHistory.push({ time: state.elapsedSeconds, wpm: wpm });
+                }
+            }
+
+            // Filler Word Counting
+            let fillersFound = 0;
+            const updatedCounts = { um: 0, uh: 0, like: 0, "you know": 0, so: 0, basically: 0, actually: 0 };
+
+            FILLER_PATTERNS.forEach(item => {
+                const matches = text.match(item.regex);
+                if (matches) {
+                    updatedCounts[item.word] = matches.length;
+                    fillersFound += matches.length;
+                }
+            });
+
+            // Detect new filler trigger for Toast Notification
+            if (fillersFound > state.totalFillerCount) {
+                showToast("Filler word detected! Pause slightly instead.", "filler");
+            }
+
+            state.fillerCounts = updatedCounts;
+            state.totalFillerCount = fillersFound;
+            fillerCountEl.textContent = state.totalFillerCount;
+
+            // Render Filler tags
+            renderFillerTags();
+        }
+
+        function renderFillerTags() {
+            fillerTags.innerHTML = Object.entries(state.fillerCounts).map(([word, count]) => {
+                const active = count > 0;
+                return `<span class="px-2 py-0.5 rounded ${active ? 'bg-fuchsia-900/60 text-fuchsia-300 border-fuchsia-500/40 font-semibold' : 'bg-gray-800 text-gray-500 border-gray-700/50'} border">${word}: ${count}</span>`;
+            }).join('');
+        }
+
+        // ------------------------------------------------------------------
+        // AUDIO CONTEXT LEVEL ANALYZER
+        // ------------------------------------------------------------------
+        async function startAudioAnalysis(stream) {
+            try {
+                state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                state.analyser = state.audioCtx.createAnalyser();
+                state.analyser.fftSize = 256;
+                const source = state.audioCtx.createMediaStreamSource(stream);
+                source.connect(state.analyser);
+
+                const dataArray = new Uint8Array(state.analyser.frequencyBinCount);
+
+                const updateVolumeMeter = () => {
+                    if (!state.isSessionActive) return;
+                    state.analyser.getByteFrequencyData(dataArray);
+                    let sum = 0;
+                    for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+                    const average = sum / dataArray.length;
+                    const volumePct = Math.min(100, Math.round((average / 128) * 100));
+
+                    volumeBar.style.width = `${volumePct}%`;
+
+                    state.audioAnimFrame = requestAnimationFrame(updateVolumeMeter);
+                };
+                updateVolumeMeter();
+            } catch (e) {
+                console.error("Audio Analysis failed", e);
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // COMPUTER VISION & MEDIAPIPE FACE MESH INTEGRATION
+        // ------------------------------------------------------------------
+        function initFaceMesh() {
+            const canvasCtx = meshCanvas.getContext('2d');
+
+            state.faceMesh = new FaceMesh({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+            });
+
+            state.faceMesh.setOptions({
+                maxNumFaces: 1,
+                refineLandmarks: true,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+
+            state.faceMesh.onResults((results) => {
+                meshCanvas.width = webcamVideo.videoWidth || 640;
+                meshCanvas.height = webcamVideo.videoHeight || 480;
+                canvasCtx.save();
+                canvasCtx.clearRect(0, 0, meshCanvas.width, meshCanvas.height);
+
+                if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                    const landmarks = results.multiFaceLandmarks[0];
+
+                    // Draw Face Outline
+                    canvasCtx.strokeStyle = 'rgba(0, 243, 255, 0.35)';
+                    canvasCtx.lineWidth = 1;
+                    
+                    // Key landmark points
+                    const noseTip = landmarks[1];
+                    const leftEye = landmarks[33];
+                    const rightEye = landmarks[263];
+                    const mouthTop = landmarks[13];
+                    const mouthBottom = landmarks[14];
+
+                    // Eye Contact & Pose Logic
+                    state.totalVisionFrames++;
+                    
+                    // Head pose estimation via nose offset
+                    const eyeCenterX = (leftEye.x + rightEye.x) / 2;
+                    const headDx = Math.abs(noseTip.x - eyeCenterX);
+                    
+                    const isLookingForward = headDx < 0.08 && noseTip.y > 0.3 && noseTip.y < 0.7;
+
+                    if (isLookingForward) {
+                        state.eyeContactFrames++;
+                        postureHud.textContent = "Eye Contact Locked";
+                        postureHud.className = "text-xs font-semibold text-emerald-400";
+                    } else {
+                        postureHud.textContent = "Looking Away / Down";
+                        postureHud.className = "text-xs font-semibold text-amber-400";
+                    }
+
+                    // Expression estimation (Smile detection by mouth height)
+                    const mouthDist = Math.abs(mouthBottom.y - mouthTop.y);
+                    if (mouthDist > 0.05) {
+                        state.currentExpression = "Expressive / Smiling";
+                        expressionText.textContent = "Expressive / Confident";
+                    } else {
+                        state.currentExpression = "Calm / Neutral";
+                        expressionText.textContent = "Calm / Focused";
+                    }
+
+                    // Update Eye Contact PCT
+                    const pct = Math.round((state.eyeContactFrames / Math.max(1, state.totalVisionFrames)) * 100);
+                    state.eyeContactPercentage = pct;
+                    eyeContactHud.textContent = `${pct}%`;
+                    eyePercentText.textContent = `${pct}%`;
+                    eyeProgressBar.style.width = `${pct}%`;
+
+                    // Draw subtle facial mesh points
+                    canvasCtx.fillStyle = 'rgba(0, 243, 255, 0.6)';
+                    [1, 33, 263, 61, 291].forEach(ptIdx => {
+                        const pt = landmarks[ptIdx];
+                        canvasCtx.beginPath();
+                        canvasCtx.arc(pt.x * meshCanvas.width, pt.y * meshCanvas.height, 2, 0, 2 * Math.PI);
+                        canvasCtx.fill();
+                    });
+
+                } else {
+                    postureHud.textContent = "Face Not Detected";
+                    postureHud.className = "text-xs font-semibold text-rose-400";
+                }
+
+                canvasCtx.restore();
+            });
+        }
+
+        // ------------------------------------------------------------------
+        // CAMERA STREAM START / STOP
+        // ------------------------------------------------------------------
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+                    audio: true
+                });
+
+                webcamVideo.srcObject = stream;
+                state.micStream = stream;
+
+                await webcamVideo.play();
+                camPlaceholder.classList.add('hidden');
+                hudOverlay.classList.remove('opacity-0');
+
+                // Start Audio Analysis
+                startAudioAnalysis(stream);
+
+                // Init MediaPipe Camera Utility
+                if (state.faceMesh) {
+                    state.cameraUtils = new Camera(webcamVideo, {
+                        onFrame: async () => {
+                            if (state.isSessionActive && !state.isPaused) {
+                                await state.faceMesh.send({ image: webcamVideo });
+                            }
+                        },
+                        width: 640,
+                        height: 480
+                    });
+                    state.cameraUtils.start();
+                }
+
+            } catch (err) {
+                console.error("Camera access error:", err);
+                showToast("Camera or Microphone access denied.", "warning");
+            }
+        }
+
+        function stopCamera() {
+            if (state.micStream) {
+                state.micStream.getTracks().forEach(track => track.stop());
+            }
+            if (state.cameraUtils) state.cameraUtils.stop();
+            if (state.audioCtx) state.audioCtx.close();
+            
+            webcamVideo.srcObject = null;
+            camPlaceholder.classList.remove('hidden');
+            hudOverlay.classList.add('opacity-0');
+        }
+
+        // ------------------------------------------------------------------
+        // SESSION CONTROLS & TIMERS
+        // ------------------------------------------------------------------
+        toggleSessionBtn.addEventListener('click', () => {
+            if (!state.isSessionActive) {
+                startSession();
+            } else {
+                stopSession();
+            }
+        });
+
+        pauseSessionBtn.addEventListener('click', () => {
+            if (!state.isSessionActive) return;
+            
+            state.isPaused = !state.isPaused;
+            if (state.isPaused) {
+                pauseSessionBtn.innerHTML = `<i data-lucide="play" class="w-4 h-4"></i><span>Resume</span>`;
+                pauseSessionBtn.classList.add('text-amber-400');
+                if (state.recognition) state.recognition.stop();
+            } else {
+                pauseSessionBtn.innerHTML = `<i data-lucide="pause" class="w-4 h-4"></i><span>Pause</span>`;
+                pauseSessionBtn.classList.remove('text-amber-400');
+                if (state.recognition) try { state.recognition.start(); } catch(e){}
+            }
+            lucide.createIcons();
+        });
+
+        async function startSession() {
+            // Reset Session State
+            state.isSessionActive = true;
+            state.isPaused = false;
+            state.elapsedSeconds = 0;
+            state.transcript = "";
+            state.totalFillerCount = 0;
+            state.eyeContactFrames = 0;
+            state.totalVisionFrames = 0;
+            state.wpmHistory = [];
+            state.fillerCounts = { um: 0, uh: 0, like: 0, "you know": 0, so: 0, basically: 0, actually: 0 };
+            
+            transcriptBox.innerText = "Listening...";
+            renderFillerTags();
+
+            // UI Adjustments
+            sessionBtnText.textContent = "Stop Session";
+            toggleSessionBtn.className = "px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-400 hover:to-red-500 text-white font-semibold text-sm shadow-lg shadow-rose-500/25 flex items-center space-x-2 transition transform active:scale-95";
+            sessionBtnIcon.setAttribute('data-lucide', 'square');
+            pauseSessionBtn.disabled = false;
+            finishSessionBtn.disabled = false;
+            finishSessionBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+
+            lucide.createIcons();
+
+            // Start Audio & Video Streams
+            await startCamera();
+
+            // Start Speech Recognition
+            if (!state.recognition) initSpeechRecognition();
+            if (state.recognition) {
+                try { state.recognition.start(); } catch(e){}
+            }
+
+            // Start Timer
+            state.timerInterval = setInterval(() => {
+                if (!state.isPaused) {
+                    state.elapsedSeconds++;
+                    const mins = Math.floor(state.elapsedSeconds / 60).toString().padStart(2, '0');
+                    const secs = (state.elapsedSeconds % 60).toString().padStart(2, '0');
+                    timerHud.textContent = `${mins}:${secs}`;
+                }
+            }, 1000);
+
+            // Start Teleprompter
+            startTeleprompterScroll();
+        }
+
+        function stopSession() {
+            state.isSessionActive = false;
+            clearInterval(state.timerInterval);
+            if (state.teleprompterInterval) clearInterval(state.teleprompterInterval);
+            if (state.recognition) state.recognition.stop();
+
+            stopCamera();
+
+            // UI Reset
+            sessionBtnText.textContent = "Start Session";
+            toggleSessionBtn.className = "px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold text-sm shadow-lg shadow-cyan-500/25 flex items-center space-x-2 transition transform active:scale-95";
+            sessionBtnIcon.setAttribute('data-lucide', 'play');
+            pauseSessionBtn.disabled = true;
+
+            lucide.createIcons();
+        }
+
+        finishSessionBtn.addEventListener('click', () => {
+            if (state.isSessionActive) stopSession();
+            generateAnalyticsReport();
+        });
+
+        // ------------------------------------------------------------------
+        // TOAST NOTIFICATIONS
+        // ------------------------------------------------------------------
+        function showToast(msg, type = "info") {
+            const toastContainer = document.getElementById('hudToastContainer');
+            const toast = document.createElement('div');
+            
+            const colorClass = type === 'filler' ? 'bg-fuchsia-950/90 border-fuchsia-500/50 text-fuchsia-200' : 
+                               type === 'warning' ? 'bg-amber-950/90 border-amber-500/50 text-amber-200' :
+                               'bg-cyan-950/90 border-cyan-500/50 text-cyan-200';
+
+            toast.className = `px-3 py-1.5 rounded-lg border backdrop-blur-md text-xs font-medium shadow-lg animate-float flex items-center space-x-2 ${colorClass}`;
+            toast.innerHTML = `<i data-lucide="alert-circle" class="w-3.5 h-3.5"></i> <span>${msg}</span>`;
+            
+            toastContainer.appendChild(toast);
+            lucide.createIcons();
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'transition-opacity');
+                setTimeout(() => toast.remove(), 300);
+            }, 2500);
+        }
+
+        // ------------------------------------------------------------------
+        // POST-SESSION REPORT & CHART GENERATION
+        // ------------------------------------------------------------------
+        function generateAnalyticsReport() {
+            // Populate Metrics
+            const durationMins = Math.floor(state.elapsedSeconds / 60);
+            const durationSecs = state.elapsedSeconds % 60;
+            document.getElementById('reportMeta').textContent = `Duration: ${durationMins.toString().padStart(2, '0')}:${durationSecs.toString().padStart(2, '0')} | Mode: ${practiceMode.options[practiceMode.selectedIndex].text}`;
+
+            // Scores Calculation
+            const totalWords = state.transcript.trim().split(/\s+/).filter(w => w.length > 0).length;
+            const avgWpm = state.elapsedSeconds > 0 ? Math.round(totalWords / (state.elapsedSeconds / 60)) : 0;
+            
+            // Target WPM check (140-160 optimal)
+            let pacingScore = 100;
+            if (avgWpm < 120) pacingScore = Math.max(50, 100 - (120 - avgWpm));
+            else if (avgWpm > 170) pacingScore = Math.max(50, 100 - (avgWpm - 170));
+
+            const eyeScore = state.eyeContactPercentage;
+            
+            // Filler score penalty
+            const fillerPenalty = Math.min(60, state.totalFillerCount * 8);
+            const fillerScore = Math.max(40, 100 - fillerPenalty);
+
+            const overallScore = Math.round((pacingScore * 0.3) + (eyeScore * 0.4) + (fillerScore * 0.3));
+
+            document.getElementById('scoreOverall').textContent = `${overallScore}%`;
+            document.getElementById('scorePacing').textContent = `${pacingScore}%`;
+            document.getElementById('scoreEyeContact').textContent = `${eyeScore}%`;
+            document.getElementById('scoreFiller').textContent = `${fillerScore}%`;
+
+            // Annotated Transcript Render
+            renderAnnotatedTranscript();
+
+            // Populate AI Recommendations
+            populateAITips(overallScore, avgWpm, eyeScore, state.totalFillerCount);
+
+            // Render Charts
+            renderReportCharts();
+
+            // Display Modal
+            reportModal.classList.remove('opacity-0', 'pointer-events-none');
+        }
+
+        function renderAnnotatedTranscript() {
+            let text = state.transcript || "No transcript recorded during this session.";
+            
+            FILLER_PATTERNS.forEach(item => {
+                text = text.replace(item.regex, (match) => `<span class="bg-fuchsia-950 text-fuchsia-300 border border-fuchsia-500/50 px-1 py-0.5 rounded font-bold">${match}</span>`);
+            });
+
+            document.getElementById('annotatedTranscript').innerHTML = text;
+        }
+
+        function populateAITips(overall, wpm, eye, fillerCount) {
+            const tipsList = document.getElementById('aiTipsList');
+            const tips = [];
+
+            if (eye < 75) {
+                tips.push("<strong>Eye Contact:</strong> Practice looking directly into the webcam lens rather than your screen. This creates strong direct eye contact with virtual audience members.");
+            } else {
+                tips.push("<strong>Eye Contact Excellence:</strong> Great eye contact stability maintained throughout your talk!");
+            }
+
+            if (wpm < 120) {
+                tips.push("<strong>Pacing:</strong> Your speech pace was slightly slow. Aim for ~140-150 WPM to maintain audience engagement.");
+            } else if (wpm > 165) {
+                tips.push("<strong>Pacing:</strong> You spoke slightly fast. Pause intentionally between key points to let main takeaways land.");
+            } else {
+                tips.push("<strong>Optimal Tempo:</strong> Excellent cadence! Your pace fell right within the ideal presentation window.");
+            }
+
+            if (fillerCount > 3) {
+                tips.push(`<strong>Filler Word Reduction:</strong> You used ${fillerCount} filler words ("um", "uh", "like"). Replace filler words with purposeful silent pauses to project authority.`);
+            } else {
+                tips.push("<strong>Clarity:</strong> Outstanding crisp delivery with minimal or zero filler words!");
+            }
+
+            tipsList.innerHTML = tips.map(t => `<li>${t}</li>`).join('');
+        }
+
+        function renderReportCharts() {
+            // WPM Chart
+            const wpmCtx = document.getElementById('wpmChart').getContext('2d');
+            if (wpmChartInstance) wpmChartInstance.destroy();
+
+            const labels = state.wpmHistory.map(h => `${h.time}s`);
+            const dataPoints = state.wpmHistory.map(h => h.wpm);
+
+            wpmChartInstance = new Chart(wpmCtx, {
+                type: 'line',
+                data: {
+                    labels: labels.length ? labels : ['0s', '10s', '20s', '30s'],
+                    datasets: [{
+                        label: 'WPM Pace',
+                        data: dataPoints.length ? dataPoints : [0, 140, 150, 145],
+                        borderColor: '#0284c7',
+                        backgroundColor: 'rgba(2, 132, 199, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
+
+            // Filler Breakdown Chart
+            const fillerCtx = document.getElementById('fillerChart').getContext('2d');
+            if (fillerChartInstance) fillerChartInstance.destroy();
+
+            const fillerLabels = Object.keys(state.fillerCounts);
+            const fillerValues = Object.values(state.fillerCounts);
+
+            fillerChartInstance = new Chart(fillerCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: fillerLabels,
+                    datasets: [{
+                        data: fillerValues.some(v => v > 0) ? fillerValues : [1, 1, 1, 1, 1, 1, 1],
+                        backgroundColor: [
+                            '#8a2be2', '#ff007f', '#00f3ff', '#38bdf8', '#10b981', '#f59e0b', '#ec4899'
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 10 } } }
+                    }
+                }
+            });
+        }
+
+        // Close Modal Controls
+        closeReportBtn.addEventListener('click', () => {
+            reportModal.classList.add('opacity-0', 'pointer-events-none');
+        });
+        restartSessionModalBtn.addEventListener('click', () => {
+            reportModal.classList.add('opacity-0', 'pointer-events-none');
+            startSession();
+        });
+
+        // ------------------------------------------------------------------
+        // INITIALIZATION ON LOAD
+        // ------------------------------------------------------------------
+        window.onload = () => {
+            initFaceMesh();
+        };
+    </script>
+</body>
+</html>
