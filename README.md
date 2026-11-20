@@ -1,7 +1,7 @@
 # Center-Stage
 TSA 26-27 Software Development Theme: Develop a software application that improves how people learn, teach, practice, or develop new skills. Competitors should identify an educational or training challenge affecting learners of any age and design an engaging, effective, and user-centered software solution.
 
-**Github Pages** is out! Here's the link: https://Mixchii.github.io/center-stage/
+**Github Pages** is out! Here's the link: https://Mixchii.github.io/Center-Stage/
 
 **Center-Stage** is a public speaking and presentation simulator made to reduce speaking anxiety with real time objective feedback. You present directly to your webcam and get feedback on your pacing, filler words, and eye contact. 
 
